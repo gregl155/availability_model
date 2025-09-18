@@ -44,22 +44,20 @@ def api_progression():
             "message": "No snapshots available for this check-in date"
         })
 
-    # Latest creation per parse_date within subset
-    latest_dt = {}
+    # Group by parse_date, then for each parse_date take max availability per room_id
+    from collections import defaultdict
+    by_pd = defaultdict(list)
     for r in subset:
-        cur = latest_dt.get(r.parse_date)
-        if cur is None or r.creation_dt > cur:
-            latest_dt[r.parse_date] = r.creation_dt
-
-    # For each parse_date, compute total availability (dedupe by room_id with max availability)
+        by_pd[r.parse_date].append(r)
+    
     totals_by_pd = {}
-    for pd, cdt in latest_dt.items():
+    for pd, pd_records in by_pd.items():
+        # For this parse_date, take max availability per room across all creation times
         per_room = {}
-        for r in subset:
-            if r.parse_date == pd and r.creation_dt == cdt:
-                prev = per_room.get(r.room_id)
-                if prev is None or r.availability > prev:
-                    per_room[r.room_id] = r.availability
+        for r in pd_records:
+            prev = per_room.get(r.room_id)
+            if prev is None or r.availability > prev:
+                per_room[r.room_id] = r.availability
         totals_by_pd[pd] = sum(max(0, v) for v in per_room.values())
 
     if not totals_by_pd:
