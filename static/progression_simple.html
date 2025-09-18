@@ -1,0 +1,84 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Availability Progression</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 20px; }
+      .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+      label { font-weight: 600; }
+      input, button { padding: 6px 10px; font-size: 14px; }
+      #chart-wrap { margin-top: 18px; }
+    </style>
+  </head>
+  <body>
+    <h2>Availability Progression for a Check-in Date</h2>
+    <div class="row">
+      <label for="checkin">Check-in date:</label>
+      <input id="checkin" type="date" value="2025-09-13" />
+      <button id="load">Load</button>
+      <span id="status"></span>
+    </div>
+    <div id="chart-wrap">
+      <canvas id="chart" height="110"></canvas>
+    </div>
+
+    <script>
+      const ctx = document.getElementById('chart').getContext('2d');
+      let chart;
+
+      async function loadData() {
+        const ci = document.getElementById('checkin').value;
+        document.getElementById('status').textContent = 'Loading...';
+        try {
+          const res = await fetch(`/api/progression?check_in=${encodeURIComponent(ci)}`);
+          const data = await res.json();
+          if (!res.ok || !data.points) {
+            document.getElementById('status').textContent = data.error || 'Error';
+            return;
+          }
+          if (data.points.length === 0) {
+            document.getElementById('status').textContent = 'No snapshots for this date';
+          } else {
+            document.getElementById('status').textContent = '';
+          }
+
+          const labels = data.points.map(p => p.parse_date);
+          const observed = data.points.map(p => p.observed);
+
+          if (chart) chart.destroy();
+          chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+              labels,
+              datasets: [{
+                label: 'Observed availability',
+                data: observed,
+                borderColor: '#1f77b4',
+                backgroundColor: 'rgba(31, 119, 180, 0.15)',
+                tension: 0.2,
+                pointRadius: 2,
+              }]
+            },
+            options: {
+              plugins: { legend: { position: 'bottom' }, title: { display: true, text: `Progression to ${data.check_in}` } },
+              scales: {
+                x: { title: { display: true, text: 'Snapshot parse date' } },
+                y: { title: { display: true, text: 'Total available rooms' }, beginAtZero: true }
+              }
+            }
+          });
+        } catch (e) {
+          document.getElementById('status').textContent = 'Error loading data';
+        }
+      }
+
+      document.getElementById('load').addEventListener('click', loadData);
+      loadData();
+    </script>
+  </body>
+  </html>
+
+

@@ -175,7 +175,7 @@ def api_progression_multi():
 
 @app.get("/")
 def root():
-    return send_from_directory(app.static_folder, "progression.html")
+    return send_from_directory(app.static_folder, "progression_simple.html")
 
 
 @app.get("/multi")
