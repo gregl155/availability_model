@@ -1,0 +1,96 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Availability Progression (Multiple Check-in Dates)</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 20px; }
+      .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+      label { font-weight: 600; }
+      input, button, select { padding: 6px 10px; font-size: 14px; }
+      #chart-wrap { margin-top: 20px; }
+    </style>
+  </head>
+  <body>
+    <h2>Availability Progression (One line per check-in date)</h2>
+    <div class="row">
+      <label for="start">Start check-in:</label>
+      <input id="start" type="date" />
+      <label for="end">End check-in:</label>
+      <input id="end" type="date" />
+      <label for="limit">Max series:</label>
+      <input id="limit" type="number" min="1" value="30" />
+      <label for="order">Order:</label>
+      <select id="order">
+        <option value="recent">Most recent</option>
+        <option value="chron">Chronological</option>
+      </select>
+      <button id="load">Load</button>
+    </div>
+    <div id="status"></div>
+    <div id="chart-wrap">
+      <canvas id="chart" height="120"></canvas>
+    </div>
+
+    <script>
+      const ctx = document.getElementById('chart').getContext('2d');
+      let chart;
+
+      function color(i) {
+        const pal = ['#1f77b4','#ff7f0e','#2ca02c','#d62728','#9467bd','#8c564b','#e377c2','#7f7f7f','#bcbd22','#17becf'];
+        return pal[i % pal.length];
+      }
+
+      async function loadData() {
+        const start = document.getElementById('start').value;
+        const end = document.getElementById('end').value;
+        const limit = document.getElementById('limit').value || '30';
+        const order = document.getElementById('order').value;
+        const qs = new URLSearchParams();
+        if (start) qs.set('start_ci', start);
+        if (end) qs.set('end_ci', end);
+        if (limit) qs.set('max_series', limit);
+        if (order) qs.set('order', order);
+        document.getElementById('status').textContent = 'Loading...';
+        const res = await fetch('/api/progression_multi?' + qs.toString());
+        const data = await res.json();
+        document.getElementById('status').textContent = '';
+
+        const labels = data.labels;
+        const datasets = data.series.map((s, i) => {
+          // Map to label order; missing dates -> nulls so Chart.js draws gaps
+          const map = Object.fromEntries(s.points.map(p => [p.parse_date, p.observed]));
+          const arr = labels.map(d => (d in map ? map[d] : null));
+          return {
+            label: s.check_in,
+            data: arr,
+            borderColor: color(i),
+            backgroundColor: 'transparent',
+            spanGaps: true,
+            tension: 0.2,
+          };
+        });
+
+        if (chart) chart.destroy();
+        chart = new Chart(ctx, {
+          type: 'line',
+          data: { labels, datasets },
+          options: {
+            plugins: { legend: { position: 'bottom' }, title: { display: true, text: 'Total availability per snapshot (sum across rooms)'} },
+            scales: {
+              x: { title: { display: true, text: 'Snapshot parse date' } },
+              y: { title: { display: true, text: 'Total available rooms' }, beginAtZero: true }
+            }
+          }
+        });
+      }
+
+      document.getElementById('load').addEventListener('click', loadData);
+      loadData();
+    </script>
+  </body>
+  </html>
+
+
